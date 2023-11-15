@@ -24,7 +24,7 @@ def eprint(*args, **kwargs):
 
 json_object = json.load(sys.stdin)
 
-eprint("Loaded {} objects from stdin...".format(len(json_object)))
+eprint(f"Loaded {len(json_object)} objects from stdin...")
 
 host = '127.0.0.1'
 port = 9200
@@ -40,9 +40,8 @@ index_body = {'settings': {'index': {'number_of_shards': 1, 'number_of_replicas'
 try:
 	delete_response = client.indices.delete(index=index_name)
 	eprint('\nDeleting index...')
-# print(delete_response)
 except:
-	eprint("Failed to delete index {}".format(index_name))
+	eprint(f"Failed to delete index {index_name}")
 
 eprint('\nCreating index...')
 response_create = client.indices.create(index_name, body=index_body)

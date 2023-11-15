@@ -76,7 +76,9 @@ if armbian_utils.get_from_env("ARMBIAN_RUNNING_IN_CONTAINER") == "yes":
 	log.warning("Not running in a container. download-debs might fail. Run this in a Docker-capable machine.")
 
 # use double the number of cpu cores, but not more than 16
-max_workers = 16 if ((multiprocessing.cpu_count() * 2) > 16) else (multiprocessing.cpu_count() * 2)
+max_workers = (
+	16 if multiprocessing.cpu_count() > 8 else multiprocessing.cpu_count() * 2
+)
 # allow overriding from  PARALLEL_DOWNLOADS_WORKERS env var
 if "PARALLEL_DOWNLOADS_WORKERS" in os.environ and os.environ["PARALLEL_DOWNLOADS_WORKERS"]:
 	max_workers = int(os.environ["PARALLEL_DOWNLOADS_WORKERS"])
@@ -116,7 +118,7 @@ with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor
 
 	log.info(f"Submitted {len(every_future)} download jobs to the parallel executor. Waiting for them to finish...")
 	executor.shutdown(wait=True)
-	log.info(f"All download jobs finished!")
+	log.info("All download jobs finished!")
 
 	for future in every_future:
 		info = future.result()

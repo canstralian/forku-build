@@ -36,12 +36,9 @@ def flatten(d, parent_key='', sep='_'):
 
 
 json_object = json.load(sys.stdin)
-eprint("Loaded {} objects from stdin...".format(len(json_object)))
+eprint(f"Loaded {len(json_object)} objects from stdin...")
 
-flat = []
-for obj in json_object:
-	flat.append(flatten(obj, '', '.'))
-
+flat = [flatten(obj, '', '.') for obj in json_object]
 columns_map = {}
 for obj in flat:
 	# get the string keys
@@ -54,7 +51,7 @@ for obj in flat:
 
 columns = columns_map.keys()
 
-eprint("columns: {}".format(len(columns)))
+eprint(f"columns: {len(columns)}")
 
 # Now, find the columns of which all values are the same
 # and remove them

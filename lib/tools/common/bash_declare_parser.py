@@ -66,21 +66,17 @@ class BashDeclareParser:
 		# replace "\\\\n" with actual newline
 		value = value.replace('\\\\n', "\n")
 		value = value.replace('\\\\t', "\t")
-		value = value.replace('\\\"', '"')
-		return value
+		return value.replace('\\\"', '"')
 
 	def armbian_value_parse_single_quoted(self, value: str):
 		value = value.replace('\\n', "\n")
 		value = value.replace('\n', "\n")
 		value = value.replace('\\t', "\t")
-		value = value.replace('\t', "\t")
-		return value
+		return value.replace('\t', "\t")
 
 	def armbian_value_parse_list(self, key, item_value, delimiter):
-		ret = []
 		good = re.findall(REGEX_SINGLE_QUOTED_SPLIT, item_value)
-		for item in good:
-			ret.append(item)
+		ret = list(good)
 		# trim whitespace out of every value
 		ret = list(map(str.strip, ret))
 		# filter out empty strings

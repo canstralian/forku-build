@@ -45,10 +45,10 @@ class AutomaticPatchDescription:
 		return f"[bold][blue]{self.name}"
 
 	def rich_diffstats(self):
-		files_bare = []
 		max_files_to_show = 15  # show max 15
-		for one_file in self.files[:max_files_to_show]:
-			files_bare.append(os.path.basename(one_file))
+		files_bare = [
+			os.path.basename(one_file) for one_file in self.files[:max_files_to_show]
+		]
 		if len(self.files) > max_files_to_show:
 			files_bare.append(f"and {len(self.files) - max_files_to_show} more")
 		return ", ".join(files_bare)
@@ -58,7 +58,6 @@ class AutomaticPatchDescription:
 
 
 def auto_patch_dt_makefile(git_work_dir: str, dt_rel_dir: str, config_var: str) -> dict[str, str]:
-	ret: dict[str, str] = {}
 	dt_path = os.path.join(git_work_dir, dt_rel_dir)
 	# Bomb if it does not exist or is not a directory
 	if not os.path.isdir(dt_path):
@@ -68,8 +67,7 @@ def auto_patch_dt_makefile(git_work_dir: str, dt_rel_dir: str, config_var: str) 
 	if not os.path.isfile(makefile_path):
 		raise ValueError(f"MAKEFILE_PATH={makefile_path} is not a file")
 
-	ret["MAKEFILE_PATH"] = makefile_path
-
+	ret: dict[str, str] = {"MAKEFILE_PATH": makefile_path}
 	# Grab the contents of the Makefile
 	with open(makefile_path, "r") as f:
 		makefile_contents = f.read()
@@ -81,28 +79,25 @@ def auto_patch_dt_makefile(git_work_dir: str, dt_rel_dir: str, config_var: str) 
 	regex_dtb = r"(.*)\s(([a-zA-Z0-9-_]+)\.dtb)(.*)"
 	regex_configopt = r"^dtb-\$\(([a-zA-Z_]+)\)\s+"
 
-	# For each line, check if it matches the regex_dtb, extract the groups
-	line_counter = 0
 	line_first_match = 0
 	line_last_match = 0
 	list_dts_basenames: list[str] = []
 	list_configvars: list[str] = []
-	for line in makefile_lines:
-		line_counter += 1
+	for line_counter, line in enumerate(makefile_lines, start=1):
 		match_dtb = re.match(regex_dtb, line)
 		match_configopt = re.match(regex_configopt, line)
 		if match_dtb or match_configopt:
 			line_first_match = line_counter if line_first_match == 0 else line_first_match
 			line_last_match = line_counter
-			if match_dtb:
-				list_dts_basenames.append(match_dtb.group(3))
-			if match_configopt:
-				list_configvars.append(match_configopt.group(1))
+		if match_dtb:
+			list_dts_basenames.append(match_dtb.group(3))
+		if match_configopt:
+			list_configvars.append(match_configopt.group(1))
 
 	dict_dts_basenames = set(list_dts_basenames)  # reduce list to set
 	# Sanity checks
 	# SC: make sure dict_dts_basenames has at least one element
-	if len(dict_dts_basenames) < 1:
+	if not dict_dts_basenames:
 		raise ValueError(
 			f"dict_dts_basenames={dict_dts_basenames} -- found {len(dict_dts_basenames)} dtbs, expected more than zero in {makefile_path}")
 
@@ -114,12 +109,8 @@ def auto_patch_dt_makefile(git_work_dir: str, dt_rel_dir: str, config_var: str) 
 	# Now compute the preambles and the postamble
 	preamble_lines = makefile_lines[:line_first_match - 1]
 	postamble_lines = makefile_lines[line_last_match:]
-	# Find all .dts files in DT_PATH (not subdirectories), but add to the list without .dts suffix
-	dts_files = []
 	listdir: list[str] = os.listdir(dt_path)
-	for file in listdir:
-		if file.endswith(".dts"):
-			dts_files.append(file[:-4])
+	dts_files = [file[:-4] for file in listdir if file.endswith(".dts")]
 	# sort the list. alpha-sort: `meson-sm1-a95xf3-air-gbit` should come sooner than `meson-sm1-a95xf3-air`? why?
 	dts_files.sort()
 	log.info(f"Found {len(dts_files)} .dts files in {dt_path}")
@@ -132,16 +123,13 @@ def auto_patch_dt_makefile(git_work_dir: str, dt_rel_dir: str, config_var: str) 
 	# If we've found an equal number of dtbs and configvars, means one-rule-per-dtb (arm64) style
 	if len(list_dts_basenames) == len(list_configvars):
 		ret["extra_desc"] = "one-rule-per-dtb (arm64) style"
-		for dts_file in dts_files:
-			midamble_lines.append(f"dtb-$({config_var}) += {dts_file}.dtb")
-	# Otherwise one-rule-for-all-dtbs (arm 32-bit) style, where the last one hasn't a trailing backslash
-	# Important, this requires 6.5-rc1's move to subdir-per-vendor and can't handle the all-in-one Makefile before it
+		midamble_lines.extend(
+			f"dtb-$({config_var}) += {dts_file}.dtb" for dts_file in dts_files
+		)
 	else:
 		ret["extra_desc"] = "one-rule-for-all-dtbs (arm 32-bit) style"
 		midamble_lines.append(f"dtb-$({config_var}) += \\")
-		dtb_single_rule_list = []
-		for dts_file in dts_files:
-			dtb_single_rule_list.append(f"\t{dts_file}.dtb")
+		dtb_single_rule_list = [f"\t{dts_file}.dtb" for dts_file in dts_files]
 		midamble_lines.append(" \\\n".join(dtb_single_rule_list))
 
 	# Late to the game: if DT_DIR/overlay/Makefile exists, add it.
@@ -151,9 +139,7 @@ def auto_patch_dt_makefile(git_work_dir: str, dt_rel_dir: str, config_var: str) 
 	if os.path.isfile(DT_OVERLAY_MAKEFILE_PATH):
 		ret["DT_OVERLAY_MAKEFILE_PATH"] = DT_OVERLAY_MAKEFILE_PATH
 		ret["DT_OVERLAY_PATH"] = DT_OVERLAY_PATH
-		overlay_lines.append("")
-		overlay_lines.append("subdir-y       := $(dts-dirs) overlay")
-
+		overlay_lines.extend(("", "subdir-y       := $(dts-dirs) overlay"))
 	# Now join the preambles, midamble, postamble and overlay stuff into a single list
 	new_makefile_lines = preamble_lines + midamble_lines + postamble_lines + overlay_lines
 	# Rewrite the Makefile with the new contents
@@ -182,9 +168,8 @@ def copy_bare_files(autopatcher_params: AutoPatcherParams, type: str) -> list[Au
 		dts_dirs_by_target[one_dts_dir.target].append(one_dts_dir.source)
 
 	# for each target....
-	for target_dir in dts_dirs_by_target:
+	for target_dir, dts_source_dirs in dts_dirs_by_target.items():
 		all_files_to_copy = []
-		dts_source_dirs = dts_dirs_by_target[target_dir]
 		full_path_target_dir = os.path.join(autopatcher_params.git_work_dir, target_dir)
 		if not os.path.exists(full_path_target_dir):
 			os.makedirs(full_path_target_dir)
@@ -223,7 +208,7 @@ def copy_bare_files(autopatcher_params: AutoPatcherParams, type: str) -> list[Au
 		desc.files = all_copied_files
 		ret_desc_list.append(desc)
 
-		if autopatcher_params.apply_patches_to_git and len(all_copied_files) > 0:
+		if autopatcher_params.apply_patches_to_git and all_copied_files:
 			autopatcher_params.git_repo.git.add(all_copied_files)
 			maintainer_actor: Actor = Actor(f"Armbian Bare {type.upper()} AutoPatcher", "patching@armbian.com")
 			commit = autopatcher_params.git_repo.index.commit(

@@ -114,19 +114,45 @@ def get_userspace_inventory(opts: dict):
 				continue
 
 			if opts["cli"]:
-				for bb in wanted_bbs_for_arch:
-					ret.append({**bb, **{"RELEASE": userspace["id"], "USERSPACE_ARCH": wanted_arch, "BUILD_MINIMAL": "no", "BUILD_DESKTOP": "no"}})
-
+				ret.extend(
+					{
+						**bb,
+						**{
+							"RELEASE": userspace["id"],
+							"USERSPACE_ARCH": wanted_arch,
+							"BUILD_MINIMAL": "no",
+							"BUILD_DESKTOP": "no",
+						},
+					}
+					for bb in wanted_bbs_for_arch
+				)
 			if opts["minimal"]:
-				for bb in wanted_bbs_for_arch:
-					ret.append({**bb, **{"RELEASE": userspace["id"], "USERSPACE_ARCH": wanted_arch, "BUILD_MINIMAL": "yes", "BUILD_DESKTOP": "no"}})
-
+				ret.extend(
+					{
+						**bb,
+						**{
+							"RELEASE": userspace["id"],
+							"USERSPACE_ARCH": wanted_arch,
+							"BUILD_MINIMAL": "yes",
+							"BUILD_DESKTOP": "no",
+						},
+					}
+					for bb in wanted_bbs_for_arch
+				)
 			if opts["cloud"]:  # rpardini's cloud images.
-				for bb in wanted_bbs_for_arch:
-					ret.append({**bb, **{
-						"RELEASE": userspace["id"], "USERSPACE_ARCH": wanted_arch, "BUILD_MINIMAL": "no", "BUILD_DESKTOP": "no", "CLOUD_IMAGE": "yes"
-					}})
-
+				ret.extend(
+					{
+						**bb,
+						**{
+							"RELEASE": userspace["id"],
+							"USERSPACE_ARCH": wanted_arch,
+							"BUILD_MINIMAL": "no",
+							"BUILD_DESKTOP": "no",
+							"CLOUD_IMAGE": "yes",
+						},
+					}
+					for bb in wanted_bbs_for_arch
+				)
 			if opts["desktops"]:
 				# loop over the desktops in userspace; skip any that are eos, or that don't have the wanted arch
 				for desktop in userspace["desktops"]:
@@ -152,13 +178,21 @@ def get_userspace_inventory(opts: dict):
 					for variant in opts["desktop_variations"]:
 						appgroups_comma = ",".join(variant)
 
-						for bb in wanted_bbs_for_arch:
-							ret.append({**bb, **{
-								"RELEASE": userspace["id"], "USERSPACE_ARCH": wanted_arch, "BUILD_MINIMAL": "no", "BUILD_DESKTOP": "yes",
-								"DESKTOP_ENVIRONMENT_CONFIG_NAME": "config_base",  # yeah, config_base is hardcoded.
-								"DESKTOP_APPGROUPS_SELECTED": appgroups_comma,  # hopefully empty works
-								"DESKTOP_ENVIRONMENT": desktop["id"]}})
-
+						ret.extend(
+							{
+								**bb,
+								**{
+									"RELEASE": userspace["id"],
+									"USERSPACE_ARCH": wanted_arch,
+									"BUILD_MINIMAL": "no",
+									"BUILD_DESKTOP": "yes",
+									"DESKTOP_ENVIRONMENT_CONFIG_NAME": "config_base",  # yeah, config_base is hardcoded.
+									"DESKTOP_APPGROUPS_SELECTED": appgroups_comma,  # hopefully empty works
+									"DESKTOP_ENVIRONMENT": desktop["id"],
+								},
+							}
+							for bb in wanted_bbs_for_arch
+						)
 	return ret
 
 
@@ -191,8 +225,7 @@ for target_name in targets["targets"]:
 	if "items" in target_obj:
 		for item in target_obj["items"]:
 			if isinstance(item, list):
-				for item_item in item:
-					all_items.append(item_item)
+				all_items.extend(iter(item))
 			else:
 				all_items.append(item)
 
@@ -201,14 +234,14 @@ for target_name in targets["targets"]:
 		# loop over the keys, for regular board vs branches inventory
 		for key in target_obj["items-from-inventory"]:
 			to_add = []
-			if key == "userspace":
-				to_add.extend(get_userspace_inventory(target_obj["items-from-inventory"][key]))
-			elif key == "all":
+			if key == "all":
 				to_add.extend(all_boards_all_branches)
 			elif key == "not-eos":
 				to_add.extend(not_eos_boards_all_branches)
 			elif key == "not-eos-with-video":
 				to_add.extend(not_eos_with_video_boards_all_branches)
+			elif key == "userspace":
+				to_add.extend(get_userspace_inventory(target_obj["items-from-inventory"][key]))
 			else:
 				to_add.extend(boards_by_support_level_and_branches[key])
 			log.info(f"Adding '{key}' from inventory to target '{target_name}': {len(to_add)} targets")
@@ -221,9 +254,9 @@ for target_name in targets["targets"]:
 			one_invocation_vars.update(one_expansion["vars"])
 			one_invocation_vars.update(item)
 			# Special case for BETA, read this from TARGETS_BETA environment and force it.
-			one_invocation_vars.update({"BETA": os.environ.get("TARGETS_BETA", "")})
+			one_invocation_vars["BETA"] = os.environ.get("TARGETS_BETA", "")
 			# Special case for REVISION, read this from TARGETS_REVISION environment and force it.
-			one_invocation_vars.update({"REVISION": os.environ.get("TARGETS_REVISION", "")})
+			one_invocation_vars["REVISION"] = os.environ.get("TARGETS_REVISION", "")
 			expanded = {"vars": one_invocation_vars, "configs": one_expansion["configs"], "pipeline": one_expansion["pipeline"]}
 			invocations_dict.append(expanded)
 
@@ -251,11 +284,7 @@ for invocation in all_invocations:
 	# Add "virtual" BOARD_SLASH_BRANCH var, for easy filtering
 	invocation["inventory"]["BOARD_TOP_LEVEL_VARS"]['BOARD_SLASH_BRANCH'] = f"{invocation['vars']['BOARD']}/{invocation['vars']['BRANCH']}"
 
-# Allow filtering of invocations, using environment variable:
-# - TARGETS_FILTER_INCLUDE: only include invocations that match this query-string
-# For example: TARGETS_FILTER_INCLUDE="BOARD:xxx,BOARD:yyy"
-include_filter = os.environ.get("TARGETS_FILTER_INCLUDE", "").strip()
-if include_filter:
+if include_filter := os.environ.get("TARGETS_FILTER_INCLUDE", "").strip():
 	log.info(f"Filtering {len(all_invocations)} invocations to only include those matching: '{include_filter}'")
 	include_filter_list: list[dict[str, str]] = []
 	include_raw_split = include_filter.split(",")
@@ -279,17 +308,16 @@ if include_filter:
 				continue
 			filtered_key = top_level_vars[include_filter["key"]]
 			# If it is an array...
-			if isinstance(filtered_key, list):
-				if include_filter["value"] in filtered_key:
-					invocations_filtered.append(invocation)
-					break
-			else:
-				if filtered_key == include_filter["value"]:
-					invocations_filtered.append(invocation)
-					break
-
+			if (
+				isinstance(filtered_key, list)
+				and include_filter["value"] in filtered_key
+				or not isinstance(filtered_key, list)
+				and filtered_key == include_filter["value"]
+			):
+				invocations_filtered.append(invocation)
+				break
 	log.info(f"Filtered invocations to {len(invocations_filtered)} invocations after include filters.")
-	if len(invocations_filtered) == 0:
+	if not invocations_filtered:
 		log.error(f"No invocations left after filtering '{include_filter}'!")
 		sys.exit(2)
 
@@ -297,12 +325,9 @@ if include_filter:
 else:
 	log.info("No include filter set, not filtering invocations.")
 
-counter = 1
-for one_invocation in all_invocations:
+for counter, one_invocation in enumerate(all_invocations, start=1):
 	# target_id is the counter left-padded with zeros to 10 digits, plus the total number of invocations, left-padded with zeros to 10 digits.
 	one_invocation["target_id"] = f"{counter:010d}" + f"{len(all_invocations):010d}"
-	counter += 1
-
 # dump invocation list as json
 invocations_json = json.dumps(all_invocations, indent=4, sort_keys=True)
 print(invocations_json)

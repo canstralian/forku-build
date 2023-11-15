@@ -52,8 +52,7 @@ for artifact in artifacts:
 	tags_by_oci_name[oci_name].append(oci_tag)
 
 # loop over the dict, and warn if any have more than one instance
-for oci_name in tags_by_oci_name:
-	tags = tags_by_oci_name[oci_name]
+for oci_name, tags in tags_by_oci_name.items():
 	if len(tags) > 1:
 		list_tags_escaped_quoted = ', '.join([f"'{tag}'" for tag in tags])
 		log.warning(
@@ -125,15 +124,14 @@ for target_id, image in images_by_target_id.items():
 	for artifact in image_artifacts:
 		if not artifact["oci"]["up-to-date"]:
 			image["outdated_artifact_ids"].append(artifact["id"])
-			image["outdated_artifacts_count"] = image["outdated_artifacts_count"] + 1
+			image["outdated_artifacts_count"] += 1
 	images_with_artifacts[target_id] = image
 
-# images with outdated artifacts
-images_with_outdated_artifacts = []
-for target_id, image in images_with_artifacts.items():
-	if image["outdated_artifacts_count"] > 0:
-		images_with_outdated_artifacts.append(target_id)
-
+images_with_outdated_artifacts = [
+	target_id
+	for target_id, image in images_with_artifacts.items()
+	if image["outdated_artifacts_count"] > 0
+]
 result = {"images": images_with_artifacts, "artifacts": artifacts_by_id,
 		  "artifacts_by_artifact_name": artifacts_by_artifact_name,
 		  "outdated_artifacts_by_artifact_name": outdated_artifacts_by_artifact_name,

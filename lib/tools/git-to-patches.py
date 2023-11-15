@@ -33,9 +33,8 @@ BASE_GIT_TAG = armbian_utils.get_from_env("BASE_GIT_TAG")
 if BASE_GIT_REVISION is None:
 	if BASE_GIT_TAG is None:
 		raise Exception("BASE_GIT_REVISION or BASE_GIT_TAG must be set")
-	else:
-		BASE_GIT_REVISION = git_repo.tags[BASE_GIT_TAG].commit.hexsha
-		print(f"Found BASE_GIT_REVISION={BASE_GIT_REVISION} for BASE_GIT_TAG={BASE_GIT_TAG}")
+	BASE_GIT_REVISION = git_repo.tags[BASE_GIT_TAG].commit.hexsha
+	print(f"Found BASE_GIT_REVISION={BASE_GIT_REVISION} for BASE_GIT_TAG={BASE_GIT_TAG}")
 
 # Using GitPython, get the list of commits between the HEAD of the branch and the base revision
 # (which is either a tag or a commit)
@@ -88,7 +87,7 @@ class ParsedPatch:
 	def prepare_target_dir_fn(self, search: "str | None", replace: "str | None"):
 		if search is not None and replace is not None:
 			self.target_dir = self.target_dir.replace(search, replace)
-		self.target_dir_fn = self.target_dir + "/" + self.target_filename
+		self.target_dir_fn = f"{self.target_dir}/{self.target_filename}"
 
 
 parsed_patches: list[ParsedPatch] = []

@@ -51,7 +51,7 @@ class PatchingToGitConfig:
 class PatchingConfig:
 	def __init__(self, yaml_config_file_paths: list[str]):
 		self.yaml_config_file_paths = yaml_config_file_paths
-		if len(yaml_config_file_paths) == 0:
+		if not yaml_config_file_paths:
 			self.yaml_config = {}
 		else:
 			# I'm lazy, single one for now.

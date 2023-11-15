@@ -68,7 +68,7 @@ def set_gov(gov):
     for var in cpus:
         gov_f = os.path.join(var, "cpufreq/scaling_governor")
         # print(gov_f)
-        subprocess.run("echo %s | sudo tee  %s" % (gov, gov_f), shell=True)
+        subprocess.run(f"echo {gov} | sudo tee  {gov_f}", shell=True)
 
 
 def set_performance(scale):
@@ -85,7 +85,7 @@ def set_performance(scale):
     for var in cpus:
         _f = os.path.join(var, "cpufreq/scaling_max_freq")
         # print(_f)
-        subprocess.run("echo %s | sudo tee  %s" % (freq, _f), shell=True)
+        subprocess.run(f"echo {freq} | sudo tee  {_f}", shell=True)
 
 
 def fan_loop():
