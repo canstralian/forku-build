@@ -28,11 +28,10 @@ log: logging.Logger = logging.getLogger("armbian_utils")
 
 
 def parse_env_for_tokens(env_name):
-	result = []
 	# Read the environment; if None, return an empty	 list.
 	val = os.environ.get(env_name, None)
 	if val is None:
-		return result
+		return []
 	# tokenize val; split by whitespace, line breaks, commas, and semicolons.
 	tokens = re.split(REGEX_WHITESPACE_LINEBREAK_COMMA_SEMICOLON, val)
 	# trim whitespace from tokens.
@@ -109,10 +108,8 @@ def to_yaml(gha_workflow):
 # I've to read the first line from the board file, that's the hardware description in a pound comment.
 # Also, 'KERNEL_TARGET="legacy,current,edge"' which we need to parse.
 def armbian_parse_board_file_for_static_info(board_file, board_id, core_or_userpatched):
-	file_handle = open(board_file, 'r')
-	file_lines = file_handle.readlines()
-	file_handle.close()
-
+	with open(board_file, 'r') as file_handle:
+		file_lines = file_handle.readlines()
 	file_lines.reverse()
 	hw_desc_line = file_lines.pop()
 	file_lines.reverse()
@@ -120,12 +117,11 @@ def armbian_parse_board_file_for_static_info(board_file, board_id, core_or_userp
 	if hw_desc_line.startswith("# "):
 		hw_desc_clean = hw_desc_line.strip("# ").strip("\n")
 
-	# Parse generic bash vars, with a horrendous regex.
-	generic_vars = {}
 	generic_var_matches = re.findall(ARMBIAN_BOARD_CONFIG_REGEX_GENERIC, "\n".join(file_lines), re.MULTILINE)
-	for generic_var_match in generic_var_matches:
-		generic_vars[generic_var_match[0]] = generic_var_match[1]
-
+	generic_vars = {
+		generic_var_match[0]: generic_var_match[1]
+		for generic_var_match in generic_var_matches
+	}
 	kernel_targets = []
 	if "KERNEL_TARGET" in generic_vars:
 		kernel_targets = generic_vars["KERNEL_TARGET"].split(",")
@@ -136,9 +132,8 @@ def armbian_parse_board_file_for_static_info(board_file, board_id, core_or_userp
 	if "BOARD_MAINTAINER" in generic_vars:
 		maintainers = generic_vars["BOARD_MAINTAINER"].split(" ")
 		maintainers = list(filter(None, maintainers))
-	else:
-		if core_or_userpatched == "core":
-			log.warning(f"BOARD_MAINTAINER not found in '{board_file}', syntax error?, missing quotes? stray space? missing info?")
+	elif core_or_userpatched == "core":
+		log.warning(f"BOARD_MAINTAINER not found in '{board_file}', syntax error?, missing quotes? stray space? missing info?")
 
 	board_has_video = True
 	if "HAS_VIDEO_OUTPUT" in generic_vars:
@@ -173,7 +168,7 @@ def armbian_parse_board_file_for_static_info(board_file, board_id, core_or_userp
 
 def armbian_get_all_boards_list(boards_path):
 	ret = {}
-	for file in glob.glob(boards_path + "/*.*"):
+	for file in glob.glob(f"{boards_path}/*.*"):
 		stem = Path(file).stem
 		if stem != "README":
 			ret[stem] = file
@@ -316,7 +311,7 @@ def armbian_get_all_boards_inventory():
 		userpatched_boards = armbian_get_all_boards_list(armbian_paths["userpatches_boards_path"])
 		for uboard_name in userpatched_boards.keys():
 			uboard = armbian_parse_board_file_for_static_info(userpatched_boards[uboard_name], uboard_name, "userpatched")
-			is_new_board = not (uboard_name in info_for_board)
+			is_new_board = uboard_name not in info_for_board
 			if is_new_board:
 				log.debug(f"Userpatched Board {uboard_name} is new")
 				# New userpatched boards must have the KERNEL_TARGET defined.
@@ -331,11 +326,9 @@ def armbian_get_all_boards_inventory():
 
 
 def map_to_armbian_params(map_params, quote_params=False) -> list[str]:
-	ret = []
-	for param in map_params:
-		ret.append(param + "=" + map_params[param])
+	ret = [f"{param}={map_params[param]}" for param in map_params]
 	if quote_params:
-		ret = ["'" + param + "'" for param in ret]  # single-quote each param...
+		ret = [f"'{param}'" for param in ret]
 	return ret
 
 
@@ -381,9 +374,7 @@ def armbian_run_command_and_parse_json_from_stdout(exec_cmd: list[str], params: 
 	# parse the result.stdout as json.
 	try:
 		parsed = json.loads(result.stdout.decode("utf8"))
-		info = {"in": params, "out": parsed, "config_ok": True}
-		info["logs"] = logs
-		return info
+		return {"in": params, "out": parsed, "config_ok": True, "logs": logs}
 	except json.decoder.JSONDecodeError as e:
 		log.error(f"Error parsing Armbian JSON: params: {params}, stderr: {'; '.join(logs[-5:])}")
 		# return {"in": params, "out": {}, "logs": logs, "config_ok": False}
@@ -404,7 +395,7 @@ def parse_log_lines_from_stderr(lines_stderr: str):
 		parts = line.split("::", 1)
 		if len(parts) != 2:
 			# very probably something that leaked out of logging manager, grab it
-			result.append("[LEAKED]:" + line.strip())
+			result.append(f"[LEAKED]:{line.strip()}")
 			continue
 		type = parts[0].strip()
 		msg = parts[1].strip()
@@ -437,7 +428,7 @@ def gather_json_output_from_armbian(command: str, targets: list[dict]):
 
 			log.info(f"Submitted {len(every_future)} jobs to the parallel executor. Waiting for them to finish...")
 			executor.shutdown(wait=True)
-			log.info(f"All jobs finished!")
+			log.info("All jobs finished!")
 
 			for future in every_future:
 				info = future.result()
@@ -454,14 +445,16 @@ def gather_json_output_from_armbian(command: str, targets: list[dict]):
 
 def get_info_for_one_build(armbian_paths: dict[str, str], command: str, params: dict, counter: int, total: int):
 	try:
-		try:
-			sh: str = armbian_paths["compile_sh_full_path"]
-			cmds: list[str] = ([sh] + [command] + map_to_armbian_params(params["vars"]) + params["configs"])
-			parsed = armbian_run_command_and_parse_json_from_stdout(cmds, params)
-			return parsed
-		except BaseException as e:
-			log.error(f"Failed get info for build '{command}' '{params}': '{e}'", exc_info=True)
-			return {"ARMBIAN_CONFIG_OK": False, "PYTHON_INFO_ERROR": "{}".format(e), "INPUT": params}
+		sh: str = armbian_paths["compile_sh_full_path"]
+		cmds: list[str] = ([sh] + [command] + map_to_armbian_params(params["vars"]) + params["configs"])
+		return armbian_run_command_and_parse_json_from_stdout(cmds, params)
+	except BaseException as e:
+		log.error(f"Failed get info for build '{command}' '{params}': '{e}'", exc_info=True)
+		return {
+			"ARMBIAN_CONFIG_OK": False,
+			"PYTHON_INFO_ERROR": f"{e}",
+			"INPUT": params,
+		}
 	finally:
 		if counter % 10 == 0:
 			log.info(f"Processed {counter} / {total} targets.")

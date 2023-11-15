@@ -29,11 +29,11 @@ oras.logger.setup_logger(quiet=(not armbian_utils.is_debug()), debug=(armbian_ut
 # Prepare Armbian cache
 armbian_paths = armbian_utils.find_armbian_src_path()
 cache_dir = armbian_paths["armbian_src_path"] + "/cache"
-oci_cache_dir_positive = cache_dir + "/oci/positive"
+oci_cache_dir_positive = f"{cache_dir}/oci/positive"
 os.makedirs(oci_cache_dir_positive, exist_ok=True)
 oci_cache_dir_positive = os.path.abspath(oci_cache_dir_positive)
 
-oci_cache_dir_negative = cache_dir + "/oci/negative"
+oci_cache_dir_negative = f"{cache_dir}/oci/negative"
 os.makedirs(oci_cache_dir_negative, exist_ok=True)
 oci_cache_dir_negative = os.path.abspath(oci_cache_dir_negative)
 
@@ -167,9 +167,9 @@ def process_target(oci_target, orig_target):
 oci_infos = []
 with concurrent.futures.ThreadPoolExecutor() as executor:
 	futures = [executor.submit(process_target, oci_target, oci_target_map[oci_target]) for oci_target in oci_target_map]
-	for future in concurrent.futures.as_completed(futures):
-		oci_infos.append(future.result())
-
+	oci_infos.extend(
+		future.result() for future in concurrent.futures.as_completed(futures)
+	)
 # Go, Copilot!
 log.info(
 	f"OCI cache stats 1:  lookups={stats['lookups']} skipped={stats['skipped']} hits={stats['hits']}  misses={stats['misses']}  hits_positive={stats['hits_positive']}  hits_negative={stats['hits_negative']}  late_misses={stats['late_misses']}  miss_positive={stats['miss_positive']}  miss_negative={stats['miss_negative']}")

@@ -39,7 +39,7 @@ def generate_deb_summary(info):
 		artifact_final_version_reversioned = out["artifact_final_version_reversioned"]
 		artifact_deb_repo = out["artifact_deb_repo"]
 
-		if not (artifact_type == "deb" or artifact_type == "deb-tar"):
+		if artifact_type not in ["deb", "deb-tar"]:
 			continue
 
 		all_debs: dict[str, dict] = {}
@@ -80,10 +80,7 @@ def generate_deb_summary(info):
 				"repo_target": repo_target
 			}
 
-		# Aggregate all repo_targets from their debs. There can be only one. Eg: each artifact can only be in one repo_target, no matter how many debs.
-		repo_targets = set()
-		for key in all_debs:
-			repo_targets.add(all_debs[key]["repo_target"])
+		repo_targets = {value["repo_target"] for value in all_debs.values()}
 		if len(repo_targets) > 1:
 			log.error(f"Error: artifact {artifact_id} has debs in different repo_targets: {artifact}")
 			continue

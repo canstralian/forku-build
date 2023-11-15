@@ -63,18 +63,20 @@ util.DEBOOTSTRAP_SEARCH_RELATIVE_DIRS = ["cli/_all_distributions/debootstrap", f
 util.CLI_SEARCH_RELATIVE_DIRS = ["cli/_all_distributions/main", f"cli/{RELEASE}/main"]
 
 util.DESKTOP_ENVIRONMENTS_SEARCH_RELATIVE_DIRS = [
-	f"desktop/_all_distributions/environments/_all_environments",
+	"desktop/_all_distributions/environments/_all_environments",
 	f"desktop/_all_distributions/environments/{DESKTOP_ENVIRONMENT}",
 	f"desktop/_all_distributions/environments/{DESKTOP_ENVIRONMENT}/{DESKTOP_ENVIRONMENT_CONFIG_NAME}",
 	f"desktop/{RELEASE}/environments/_all_environments",
 	f"desktop/{RELEASE}/environments/{DESKTOP_ENVIRONMENT}",
-	f"desktop/{RELEASE}/environments/{DESKTOP_ENVIRONMENT}/{DESKTOP_ENVIRONMENT_CONFIG_NAME}"]
+	f"desktop/{RELEASE}/environments/{DESKTOP_ENVIRONMENT}/{DESKTOP_ENVIRONMENT_CONFIG_NAME}",
+]
 
 util.DESKTOP_APPGROUPS_SEARCH_RELATIVE_DIRS = [
-	f"desktop/_all_distributions/appgroups",
+	"desktop/_all_distributions/appgroups",
 	f"desktop/_all_distributions/environments/{DESKTOP_ENVIRONMENT}/appgroups",
 	f"desktop/{RELEASE}/appgroups",
-	f"desktop/{RELEASE}/environments/{DESKTOP_ENVIRONMENT}/appgroups"]
+	f"desktop/{RELEASE}/environments/{DESKTOP_ENVIRONMENT}/appgroups",
+]
 
 # Debootstrap.
 debootstrap_packages = util.aggregate_all_debootstrap("packages")

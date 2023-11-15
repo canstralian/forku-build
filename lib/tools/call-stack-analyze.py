@@ -50,9 +50,7 @@ def get_group_from_filename(file):
 
 def prepare_file_for_screen(file):
 	# if it starts with "lib/functions/", remove that
-	if file.startswith("lib/functions/"):
-		return file[14:]
-	return file
+	return file[14:] if file.startswith("lib/functions/") else file
 
 
 def cleanup_filename(filename, common_prefix):
@@ -70,12 +68,10 @@ def split_by_spaces(value):
 	return value.split(" ")
 
 
-file_handle = open("output/call-traces/calls.txt", 'r')
-file_lines = file_handle.readlines()
-file_handle.close()
-
+with open("output/call-traces/calls.txt", 'r') as file_handle:
+	file_lines = file_handle.readlines()
 # eprint the number of lines
-eprint("Number of lines: " + str(len(file_lines)))
+eprint(f"Number of lines: {len(file_lines)}")
 
 bare_calls = []
 
@@ -87,7 +83,7 @@ for line in file_lines:
 	# Make sure we've 4 parts
 	if len(line_parts) != 4:
 		eprint("Error: line_parts length is not 4")
-		eprint("line_parts: " + str(line_parts))
+		eprint(f"line_parts: {str(line_parts)}")
 		continue
 
 	# first element is the function name, second is the line number, third is the file name; assign each to variables
@@ -95,21 +91,14 @@ for line in file_lines:
 	line_numbers = split_by_spaces(line_parts[1])
 	file_names = split_by_spaces(line_parts[2])
 	current_line_no = int(line_parts[3])
-	# print out
-	# eprint("Function names: " + str(function_names))
-	# eprint("Line numbers: " + str(line_numbers))
-	# eprint("File names: " + str(file_names))
-
-	# Ok now parse the stacktrace into an array, taking bashisms into consideration.
-	# The shell function ${FUNCNAME[$i]} is defined in the file ${BASH_SOURCE[$i]} and called from ${BASH_SOURCE[$i+1]}
-	stack = []
-	for i in range(len(function_names) - 1):
-		stack.append({
+	stack = [
+		{
 			"function": function_names[i],
 			"called_by_line": line_numbers[i],
-			"called_by_file": file_names[i + 1]
-		})
-
+			"called_by_file": file_names[i + 1],
+		}
+		for i in range(len(function_names) - 1)
+	]
 	# eprint("Stack: " + str(stack))
 
 	# Some unwanted functions, in an array
@@ -119,10 +108,7 @@ for line in file_lines:
 	# stack = [x for x in stack if x["function"] not in unwanted_functions]
 
 	# Add to the bare calls array.
-	if len(stack) == 1:
-		caller = "<START_HERE>"
-	else:
-		caller = (stack[1]["function"])
+	caller = "<START_HERE>" if len(stack) == 1 else stack[1]["function"]
 	bare_calls.append({
 		"callee": (stack[0]["function"]),
 		"caller": caller,
@@ -133,17 +119,14 @@ for line in file_lines:
 		"stack": stack
 	})
 
-# loop over the calls, and show the calls that have a relative path in callpoint_file.
-absolute_calls = []
-for call in bare_calls:
-	if call["callpoint_file"].startswith("/"):
-		absolute_calls.append(call)
-
+absolute_calls = [
+	call for call in bare_calls if call["callpoint_file"].startswith("/")
+]
 # loop over the calls, and determine what is the common prefix for the callpoint_file, then remove it across all calls
 # first, find the common prefix
 common_prefix = os.path.commonpath([call["callpoint_file"] for call in absolute_calls]) + "/"
 # print the common prefix
-eprint("Common prefix: " + common_prefix)
+eprint(f"Common prefix: {common_prefix}")
 # now, remove the common prefix from all callpoint_file and callee_return_file
 for call in bare_calls:
 	call["callpoint_file"] = cleanup_filename(call["callpoint_file"], common_prefix)
@@ -174,8 +157,8 @@ for call in bare_calls:
 			stack_member["def_line"] = func2file["def_line"]
 			stack_member["group"] = func2file["group"]
 		else:
-			eprint("Error: function not found in function_to_file: " + func)
-			raise Exception("Error: function not found in function_to_file: " + func)
+			eprint(f"Error: function not found in function_to_file: {func}")
+			raise Exception(f"Error: function not found in function_to_file: {func}")
 
 # Now recompute the calls, dropping from the stack the unwanted groups.
 calls = []
@@ -196,19 +179,15 @@ for call in bare_calls:
 
 	original_stack = call["stack"]
 	new_stack = []
-	stack_counter = 0
 	previous_stack = None
-	for stack_item in call["stack"]:
+	for stack_counter, stack_item in enumerate(call["stack"]):
 		# eprint("Stack: {}".format(str(stack_item)))
 		if (stack_item["group"] not in skip_groups) and (stack_item["function"] not in skip_functions):
 			new_stack.append(stack_item)
-		else:
-			# eprint("Dropping stack item: {}".format(str(stack_item)))
-			if previous_stack is not None:
-				previous_stack["called_by_line"] = stack_item["called_by_line"]
-				previous_stack["called_by_file"] = stack_item["called_by_file"]
+		elif previous_stack is not None:
+			previous_stack["called_by_line"] = stack_item["called_by_line"]
+			previous_stack["called_by_file"] = stack_item["called_by_file"]
 
-		stack_counter += 1
 		previous_stack = stack_item
 
 	stack = new_stack
@@ -222,15 +201,12 @@ for call in bare_calls:
 	# eprint("New stack: {}".format(str(new_stack)))
 
 	# if the stack is empty, skip this call
-	if len(stack) == 0:
+	if not stack:
 		eprint("Empty stack, skipping")
 		continue
 
 	# Add to the calls array.
-	if len(stack) == 1:
-		caller = "<START_HERE>"
-	else:
-		caller = (stack[1]["function"])
+	caller = "<START_HERE>" if len(stack) == 1 else stack[1]["function"]
 	calls.append({
 		"callee": (stack[0]["function"]),
 		"caller": caller,
@@ -294,17 +270,13 @@ for color in colors:
 	else:
 		color_pairs.append({"back": color, "fore": "#000000"})
 
-group_counter = 0
-
 node_colors = {}
-for node_group in grouped_nodes:
-	group_counter += 1
-
+for group_counter, (node_group, value) in enumerate(grouped_nodes.items(), start=1):
 	# cycle over a preset palette of colors
 	color = color_pairs[group_counter % len(colors)]
 
 	# with dot.subgraph(name="cluster_" + bla, graph_attr={'label': bla, 'bgcolor': color, "margin": "16"}) as sg:
-	for node in grouped_nodes[node_group]:
+	for node in value:
 		label = nodes[node]["function"] + "()" + "\n" + prepare_file_for_screen(
 			nodes[node]["definition_file"]) + ":" + str(
 			nodes[node]["definition_line"]) + "\n" + "[" + node_group + "]"

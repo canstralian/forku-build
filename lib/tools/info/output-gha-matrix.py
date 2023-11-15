@@ -27,19 +27,19 @@ def resolve_gha_runner_tags_via_pipeline_gha_config(input: dict, artifact_name: 
 	# if no config, default to "ubuntu-latest" as a last-resort
 	ret = "ubuntu-latest"
 
-	if not "pipeline" in input:
+	if "pipeline" not in input:
 		log.warning(f"No 'pipeline' config in input, defaulting to '{ret}'")
 		return ret
 
 	pipeline = input["pipeline"]
 
-	if not "gha" in pipeline:
+	if "gha" not in pipeline:
 		log.warning(f"No 'gha' config in input.pipeline, defaulting to '{ret}'")
 		return ret
 
 	gha = pipeline["gha"]
 
-	if (gha is None) or (not "runners" in gha):
+	if gha is None or "runners" not in gha:
 		log.warning(f"No 'runners' config in input.pipeline.gha, defaulting to '{ret}'")
 		return ret
 
@@ -158,7 +158,7 @@ if len(sys.argv) >= 4:
 else:
 	log.warning(f"Number of chunks not specified. Calculating automatically, matrix: {len(matrix)} chunk ideal: {ideal_chunk_size}.")
 	# calculate num_chunks by dividing the matrix size by the ideal chunk size, and rounding always up.
-	num_chunks = int(len(matrix) / ideal_chunk_size) + 1
+	num_chunks = len(matrix) // ideal_chunk_size + 1
 	log.warning(f"Number of chunks: {num_chunks}")
 
 matrix_hard_limit = 17 * 30  # @TODO: maybe 17*50 later
@@ -167,10 +167,7 @@ if len(matrix) > matrix_hard_limit:
 	log.warning(f"Matrix size is over the hard limit of {matrix_hard_limit}, slicing to that limit. Matrix is incomplete.")
 	matrix = matrix[:matrix_hard_limit]
 
-# distribute the matrix items equally along the chunks. try to keep every chunk the same size.
-chunks = []
-for i in range(num_chunks):
-	chunks.append([])
+chunks = [[] for _ in range(num_chunks)]
 for i, item in enumerate(matrix):
 	chunks[i % num_chunks].append(item)
 

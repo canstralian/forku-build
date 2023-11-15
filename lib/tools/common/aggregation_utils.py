@@ -29,10 +29,7 @@ ALL_POTENTIAL_PATHS_PACKAGES = []
 
 
 def calculate_potential_paths(root_dirs, relative_dirs, sub_dirs, artifact_file, initial_paths=None):
-	if initial_paths is None:
-		potential_paths = {"paths": []}
-	else:
-		potential_paths = initial_paths
+	potential_paths = {"paths": []} if initial_paths is None else initial_paths
 	for root_dir in root_dirs:
 		for rel_dir in relative_dirs:
 			for sub_dir in sub_dirs:
@@ -45,7 +42,7 @@ def calculate_potential_paths(root_dirs, relative_dirs, sub_dirs, artifact_file,
 
 def process_common_path_for_potentials(potential_paths):
 	# find the common prefix across potential_paths, and remove it from all paths.
-	potential_paths["common_path"] = SRC + "/"  # os.path.commonprefix(potential_paths["paths"])
+	potential_paths["common_path"] = f"{SRC}/"
 	potential_paths["paths"] = [path[len(potential_paths["common_path"]):] for path in potential_paths["paths"]]
 	return potential_paths
 
@@ -108,8 +105,10 @@ def aggregate_simple_contents_potential(potential_paths):
 def find_files_in_directory(directory, glob_pattern):
 	files = []
 	for root, dir_names, filenames in os.walk(directory):
-		for filename in fnmatch.filter(filenames, glob_pattern):
-			files.append(os.path.join(root, filename))
+		files.extend(
+			os.path.join(root, filename)
+			for filename in fnmatch.filter(filenames, glob_pattern)
+		)
 	return files
 
 
@@ -138,9 +137,11 @@ def aggregate_apt_sources(potential_paths):
 def remove_common_path_from_refs(merged):
 	all_paths = []
 	for item in merged:
-		for ref in merged[item]["refs"]:
-			if ref["path"].startswith("/"):
-				all_paths.append(ref["path"])
+		all_paths.extend(
+			ref["path"]
+			for ref in merged[item]["refs"]
+			if ref["path"].startswith("/")
+		)
 	common_path = os.path.commonprefix(all_paths)
 	for item in merged:
 		for ref in merged[item]["refs"]:
@@ -154,7 +155,7 @@ def remove_common_path_from_refs(merged):
 def parse_env_for_list(env_name, fixed_ref=None):
 	env_list = armbian_utils.parse_env_for_tokens(env_name)
 	if fixed_ref is None:
-		refs = armbian_utils.parse_env_for_tokens(env_name + "_REFS")
+		refs = armbian_utils.parse_env_for_tokens(f"{env_name}_REFS")
 		# Sanity check: the number of refs should be the same as the number of items in the list.
 		if len(env_list) != len(refs):
 			raise Exception(f"Expected {len(env_list)} refs for {env_name}, got {len(refs)}")
@@ -246,7 +247,7 @@ def join_refs_for_bash_single_string(refs):
 def join_refs_for_markdown_single_string(refs):
 	single_line_refs = []
 	for ref in refs:
-		one_line = f"  - `"
+		one_line = "  - `"
 		if "operation" in ref and "line" in ref:
 			one_line += ref["operation"] + ":" + ref["path"] + ":" + str(ref["line"])
 		else:
@@ -274,7 +275,9 @@ def prepare_bash_output_array_for_list(
 		value = merged_list[key]
 		# print(f"key: {key}, value: {value}")
 		refs = value["refs"]
-		md_writer.write(f"- `{key}`: *{value['status']}*\n" + join_refs_for_markdown_single_string(refs))
+		md_writer.write(
+			f"- `{key}`: *{value['status']}*\n{join_refs_for_markdown_single_string(refs)}"
+		)
 		refs_str = join_refs_for_bash_single_string(refs)  # join the refs with a comma
 		explain_dict[key] = refs_str
 		if value["status"] != "remove":
@@ -292,13 +295,17 @@ def prepare_bash_output_array_for_list(
 	values_list_comma = ",".join(values_list)
 	comma_var = f"declare -r -g -a {output_array_name}_COMMA='{values_list_comma}'\n"
 
-	explain_list_bash = "\n".join([f"\t['{value}']='{explain_dict[value]}'" for value in explain_dict.keys()])
+	explain_list_bash = "\n".join(
+		[f"\t['{value}']='{explain_dict[value]}'" for value in explain_dict]
+	)
 	explain_var = f"declare -r -g -A {output_array_name}_EXPLAIN=(\n{explain_list_bash}\n)\n"
 
 	# @TODO also an array with all the elements in explain; so we can do a for loop over it.
 	extra_dict_decl = ""
-	if len(extra_dict) > 0:
-		extra_list_bash = "\n".join([f"\t['{value}']='{extra_dict[value]}'" for value in extra_dict.keys()])
+	if extra_dict:
+		extra_list_bash = "\n".join(
+			[f"\t['{value}']='{extra_dict[value]}'" for value in extra_dict]
+		)
 		extra_dict_decl = f"declare -r -g -A {output_array_name}_DICT=(\n{extra_list_bash}\n)\n"
 
 	final_value = actual_var + "\n" + extra_dict_decl + "\n" + comma_var + "\n" + explain_var
@@ -314,11 +321,28 @@ def prepare_bash_output_single_string(output_array_name, merged_list):
 		value = merged_list[key]
 		refs_str = join_refs_for_bash_single_string(value["refs"])
 		# print(f"key: {key}, value: {value}")
-		values_list.append("### START Source: " + refs_str + "\n" + value[
-			"contents"] + "\n" + "### END Source: " + refs_str + "\n\n")
+		values_list.append(
+			(
+				(
+					(
+						(
+							(
+								f"### START Source: {refs_str}"
+								+ "\n"
+								+ value["contents"]
+							)
+							+ "\n"
+						)
+						+ "### END Source: "
+					)
+					+ refs_str
+				)
+				+ "\n\n"
+			)
+		)
 
 	values_list_bash = "\n".join(values_list)
-	if (len(values_list_bash) == 0):
+	if not values_list_bash:
 		values_list_bash = "### NO sources found during aggregation.\n"
 	return bash_string_multiline(output_array_name, values_list_bash)
 

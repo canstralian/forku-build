@@ -109,13 +109,13 @@ with open(sys.argv[1]) as f:
 wfFactory: gha.WorkflowFactory = gha.WorkflowFactory()
 
 # Create prepare job
-pJob: PrepareJob = PrepareJob(f"prepare", f"prepare all")
+pJob: PrepareJob = PrepareJob("prepare", "prepare all")
 pJob.set_runs_on(["self-hosted", "Linux", "matrix-prepare"])  # @TODO: de-hardcode?
 pJob.add_initial_checkout()
 pJob.add_cache_restore_step()
 
-pJobUpToDateStep = pJob.add_step(f"check-up-to-date", f"Check up to date")
-pJobUpToDateStep.run = f'rm -rfv output/info; bash ./compile.sh workflow rpardini-generic # DEBUG=yes'
+pJobUpToDateStep = pJob.add_step("check-up-to-date", "Check up to date")
+pJobUpToDateStep.run = 'rm -rfv output/info; bash ./compile.sh workflow rpardini-generic # DEBUG=yes'
 # The outputs are added later, for each artifact.
 
 pJob.add_cache_chown_step()
@@ -161,7 +161,7 @@ for artifact_id in info["artifacts"]:
 
 	aJob: ArtifactJob = ArtifactJob(f"artifact-{artifact_id}", f"{desc}")
 	aJob.set_runs_on(runs_on)
-	build_step = aJob.add_step(f"build-artifact", f"Build artifact {desc}")
+	build_step = aJob.add_step("build-artifact", f"Build artifact {desc}")
 	build_step.run = f'echo "fake artifact: {invocation}"'
 
 	# Add output to prepare job... & set the GHA output, right here. Hey us, it's us from the future. We're so smart.
@@ -173,7 +173,9 @@ for artifact_id in info["artifacts"]:
 	input: gha.WorkflowJobInput = aJob.add_job_input_from_needed_job_output(output)
 	aJob.add_condition_from_input(input, "== 'no'")
 
-	u2date_output: gha.WorkflowJobOutput = aJob.add_job_output_from_input(f"up-to-date-artifact", input)
+	u2date_output: gha.WorkflowJobOutput = aJob.add_job_output_from_input(
+		"up-to-date-artifact", input
+	)
 
 	all_artifact_jobs[artifact_id] = aJob
 	u2date_artifact_outputs[artifact_id] = u2date_output
@@ -200,7 +202,7 @@ for image_id in info["images"]:
 
 	iJob: ImageJob = ImageJob(f"image-{image_id}", f"{desc}")
 	iJob.set_runs_on(runs_on)
-	build_step = iJob.add_step(f"build-image", f"Build image {desc}")
+	build_step = iJob.add_step("build-image", f"Build image {desc}")
 	build_step.run = f'echo "fake image: {invocation}"'
 
 	# Make it use the outputs from the artifacts needed for this image
